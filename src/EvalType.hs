@@ -17,10 +17,69 @@ isBool e = do
     TBool -> return TBool
     _ -> lift Nothing
 
+isInt :: Expr -> ContextState Type
+isInt e = do
+  et <- eval e
+  case et of
+    TInt -> return TInt
+    _ -> lift Nothing
+
+isChar :: Expr -> ContextState Type
+isChar e = do
+  et <- eval e
+  case et of
+    TChar -> return TChar
+    _ -> lift Nothing
+
+canbeEq :: Expr -> ContextState Type
+canbeEq e = do et <- eval e
+               case et of 
+                  TBool -> return TBool
+                  TInt -> return TInt
+                  TChar -> return TChar
+                  _ -> lift Nothing
+
+canbeOrd :: Expr -> ContextState Type
+canbeOrd e  = do et <- eval e
+                 case et of 
+                   TInt -> return TInt
+                   TChar -> return TChar
+                   _ -> lift Nothing
+
 eval :: Expr -> ContextState Type
 eval (EBoolLit _) = return TBool
+eval (EIntLit _) = return TInt
+eval (ECharLit _) = return TChar
 eval (ENot e) = isBool e >> return TBool
--- ... more
+eval (EAnd e1 e2) = isBool e1 >> isBool e2 >> return TBool
+eval (EOr e1 e2) = isBool e1 >> isBool e2 >> return TBool
+eval (EAdd e1 e2) = isInt e1 >> isInt e2 >> return TInt
+eval (ESub e1 e2) = isInt e1 >> isInt e2 >> return TInt
+eval (EMul e1 e2) = isInt e1 >> isInt e2 >> return TInt
+eval (EDiv e1 e2) = isInt e1 >> isInt e2 >> return TInt
+eval (EMod e1 e2) = isInt e1 >> isInt e2 >> return TInt
+eval (EEq e1 e2) = do type1 <- canbeEq e1
+                      type2 <- canbeEq e2
+                      if type1 == type2 then return TBool else lift Nothing
+eval (ENeq e1 e2) = do type1 <- canbeEq e1
+                       type2 <- canbeEq e2
+                       if type1 == type2 then return TBool else lift Nothing
+eval (ELt e1 e2) = do type1 <- canbeOrd e1
+                      type2 <- canbeOrd e2
+                      if type1 == type2 then return TBool else lift Nothing
+eval (EGt e1 e2) = do type1 <- canbeOrd e1
+                      type2 <- canbeOrd e2
+                      if type1 == type2 then return TBool else lift Nothing
+eval (ELe e1 e2) = do type1 <- canbeOrd e1
+                      type2 <- canbeOrd e2
+                      if type1 == type2 then return TBool else lift Nothing
+eval (EGe e1 e2) = do type1 <- canbeOrd e1
+                      type2 <- canbeOrd e2
+                      if type1 == type2 then return TBool else lift Nothing
+eval (EIf e1 e2 e3) = do v1 <- isBool e1
+                         v2 <- eval e2
+                         v3 <- eval e3
+                         if v2==v3 then return v2 else lift Nothing
 eval _ = undefined
 
 
