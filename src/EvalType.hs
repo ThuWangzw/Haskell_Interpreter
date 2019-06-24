@@ -4,7 +4,9 @@ module EvalType where
 import AST
 import Control.Monad.State
 
-data Context = Context { -- 可以用某种方式定义上下文，用于记录变量绑定状态
+data VarSave = Var String Type deriving (Show, Eq)
+data Context = Context {
+    getVar :: [VarSave]
                        }
   deriving (Show, Eq)
 
@@ -15,6 +17,13 @@ isBool e = do
   et <- eval e
   case et of
     TBool -> return TBool
+    _ -> lift Nothing
+
+isArrow :: Expr -> ContextState Type
+isArrow e = do
+  et <- eval e
+  case et of
+    TArrow t1 t2 -> return (TArrow t1 t2)
     _ -> lift Nothing
 
 isInt :: Expr -> ContextState Type
@@ -45,6 +54,13 @@ canbeOrd e  = do et <- eval e
                    TInt -> return TInt
                    TChar -> return TChar
                    _ -> lift Nothing
+
+getVarType ::String -> [VarSave] -> ContextState Type
+getVarType name [] = lift Nothing
+getVarType name ((Var varname t):xs) = do if varname==name then return t else getVarType name xs
+
+pushVar :: VarSave -> Context -> Context
+pushVar x (Context xs) = Context (x:xs)
 
 eval :: Expr -> ContextState Type
 eval (EBoolLit _) = return TBool
@@ -80,9 +96,24 @@ eval (EIf e1 e2 e3) = do v1 <- isBool e1
                          v2 <- eval e2
                          v3 <- eval e3
                          if v2==v3 then return v2 else lift Nothing
+eval (EVar n) = do (Context xs) <- get
+                   put $ Context xs
+                   t <- getVarType n xs
+                   return t
+eval (ELambda (name, t) e) = do context <- get
+                                put (pushVar (Var name t) context)
+                                returntype <- eval e
+                                put context
+                                return (TArrow t returntype)
+                   
+eval (EApply e1 e2) = do (TArrow t1 t2) <- isArrow e1
+                         t3 <- eval e2
+                         if t1==t3 then return t2 else lift Nothing
+                         
+
 eval _ = undefined
 
 
 evalType :: Program -> Maybe Type
 evalType (Program adts body) = evalStateT (eval body) $
-  Context {  } -- 可以用某种方式定义上下文，用于记录变量绑定状态
+  Context []-- 可以用某种方式定义上下文，用于记录变量绑定状态
