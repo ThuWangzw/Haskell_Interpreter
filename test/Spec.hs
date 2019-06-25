@@ -372,11 +372,11 @@ tRaw_00_aplusb =
     EAdd (EVar "a") (EVar "b")
   ) $
 
-  ELet ("a", EIntLit 1) $
-  ELet ("b", EIntLit 2) $
-  ELet ("c", EIntLit 3) $
+  ELet ("a", EIntLit 5) $
+  ELet ("b", EIntLit 7) $
+  ELet ("c", EIntLit 10) $
   ELet ("d", callFun (EVar "solution") [EVar "b", EVar "c"]) $
-  callFun (EVar "solution") [EVar "a", EVar "d"]
+  (EVar "d")
 
 tRaw_00_aplusb_value = RInt 6
 tRaw_00_aplusb_type = Just TInt

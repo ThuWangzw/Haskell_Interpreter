@@ -8,13 +8,31 @@ data Value
   = VBool Bool
   | VInt Int
   | VChar Char
+  | VArrow (Value -> ContextState Value)
 
-  -- ... more
-  deriving (Show, Eq, Ord)
+instance Eq Value where
+  (VBool x) == (VBool y) = x==y
+  (VInt x) == (VInt y) = x==y
+  (VChar x) == (VChar y) = x==y
+  _ == _ = False
+
+instance Show Value where
+  show (VBool x) = show x
+  show (VInt x) = show x
+  show (VChar x) = show x
+  show _ = error "No instance for (Show VArrow (Value -> Value))"
+
+instance Ord Value where
+  compare (VBool x) (VBool y) = compare x y
+  compare (VInt x) (VInt y) = compare x y
+  compare (VChar x) (VChar y) = compare x y
+  compare _ _ = error "Compare error"
+
 data VarSave = Var String Value deriving (Show, Eq)
 data Context = Context {
   getVar :: [VarSave]
                           } deriving (Show, Eq)
+
 
 type ContextState a = StateT Context Maybe a
 
@@ -38,6 +56,15 @@ getVarValue name ((Var varname v):xs) = do if varname==name then return v else g
 
 pushVar :: VarSave -> Context -> Context
 pushVar x (Context xs) = Context (x:xs)
+
+removeVar :: String -> Context -> Context
+removeVar name (Context xs) = Context (removeloop name xs)
+
+removeloop :: String -> [VarSave] -> [VarSave]
+removeloop name [] = []
+removeloop name (x:xs) = if varname==name then xs else x:(removeloop name xs)
+                  where (Var varname _) = x
+
 
 eval :: Expr -> ContextState Value
 eval (EBoolLit b) = return $ VBool b
@@ -110,13 +137,38 @@ eval (EVar name) = do (Context xs) <- get
                       put (Context xs)
                       return v
 
-eval (EApply (ELambda (name, t) e1) e2) = do context <- get
-                                             v <- eval e2
-                                             put (pushVar (Var name v) context)
-                                             res <- eval e1
-                                             return res
+eval (EApply func e) = do (VArrow f) <- eval func
+                          v <- eval e
+                          res <- f v
+                          return res
 
+eval (ELambda (name, t) e) = do return (VArrow f)
+                                  where f v = do context <- get
+                                                 put (pushVar (Var name v) context)
+                                                 res <- eval e
+                                                 put context
+                                                 return res
+                              
 
+eval (ELet (name, e1) e2) = do context <- get
+                               v1 <- eval e1
+                               put (pushVar (Var name v1) context)
+                               res <- eval e2
+                               put context
+                               return res
+                               
+eval (ELetRec name (arg, argType) (e1, returnType) e2) = do context <- get
+                                                            put (pushVar (Var name (VArrow f)) context)
+                                                            res <- eval e2
+                                                            put context
+                                                            return res
+                                                            where f v = do context <- get
+                                                                           put (pushVar (Var arg v) context)
+                                                                           newcontext <- get
+                                                                           put (pushVar (Var name (VArrow f)) newcontext)
+                                                                           res <- eval e1
+                                                                           put context
+                                                                           return res
 
 -- ... more
 eval _ = undefined

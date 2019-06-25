@@ -55,6 +55,14 @@ canbeOrd e  = do et <- eval e
                    TChar -> return TChar
                    _ -> lift Nothing
 
+removeVar :: String -> Context -> Context
+removeVar name (Context xs) = Context (removeloop name xs)
+
+removeloop :: String -> [VarSave] -> [VarSave]
+removeloop name [] = error "No var found"
+removeloop name (x:xs) = if varname==name then xs else x:(removeloop name xs)
+                  where (Var varname _) = x
+
 getVarType ::String -> [VarSave] -> ContextState Type
 getVarType name [] = lift Nothing
 getVarType name ((Var varname t):xs) = do if varname==name then return t else getVarType name xs
@@ -106,10 +114,29 @@ eval (ELambda (name, t) e) = do context <- get
                                 put context
                                 return (TArrow t returntype)
                    
-eval (EApply e1 e2) = do (TArrow t1 t2) <- isArrow e1
-                         t3 <- eval e2
-                         if t1==t3 then return t2 else lift Nothing
-                         
+eval (EApply func e) = do (TArrow t1 t2) <- isArrow func
+                          t3 <- eval e
+                          if t1==t3 then return t2 else lift Nothing
+
+
+eval (ELet (name, e1) e2) = do t1 <- eval e1
+                               context <- get
+                               put (pushVar (Var name t1) context)
+                               t2 <- eval e2
+                               put context
+                               return t2
+
+eval (ELetRec name (arg, argType) (e1, returnType) e2) = do context <- get
+                                                            put (pushVar (Var arg argType) context)
+                                                            newcontext <- get
+                                                            put (pushVar (Var name (TArrow argType returnType)) newcontext)
+                                                            t1 <- eval e1
+                                                            if t1 /= returnType then lift Nothing else do 
+                                                                                                          t2 <- eval e2
+                                                                                                          put context
+                                                                                                          return t2
+
+
 
 eval _ = undefined
 
